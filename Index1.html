@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discipulado PRO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root { --primary: #27ae60; --dark: #2c3e50; --accent: #3498db; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 2px solid var(--primary); margin-bottom: 20px; }
+        .stats { background: var(--dark); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8em; margin-bottom: 10px; display: inline-block; }
+        .btn { padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 10px; }
+        .btn-new { background: var(--accent); color: white; }
+        .btn-save { background: var(--primary); color: white; }
+        .btn-pdf { background: #95a5a6; color: white; }
+        input, textarea, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .clase-card { border-left: 5px solid var(--primary); padding: 15px; margin-bottom: 15px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; border-radius: 8px; }
+        .cat-tag { font-size: 0.7em; background: #e8f5e9; color: var(--primary); padding: 3px 8px; border-radius: 5px; text-transform: uppercase; font-weight: bold; }
+        .hidden { display: none; }
+        .delete-btn { position: absolute; top: 10px; right: 10px; color: #e74c3c; font-size: 1.2em; background: none; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <div class="header">
+        <h1>📖 Mis Clases</h1>
+        <div class="stats">Total: <span id="total">0</span></div>
+    </div>
+
+    <div id="controles" class="no-print">
+        <button class="btn btn-new" onclick="toggleModo()" id="btnModo">➕ Nueva Clase</button>
+        <input type="text" id="buscador" placeholder="🔍 Buscar por título, fecha o categoría..." onkeyup="filtrar()">
+    </div>
+
+    <div id="formulario" class="hidden no-print">
+        <label>Fecha:</label>
+        <input type="date" id="fecha">
+        <label>Categoría:</label>
+        <select id="categoria">
+            <option value="General">General</option>
+            <option value="Biblia">Estudio Bíblico</option>
+            <option value="Oración">Oración</option>
+            <option value="Servicio">Servicio</option>
+            <option value="Vida Cristiana">Vida Cristiana</option>
+        </select>
+        <label>Título:</label>
+        <input type="text" id="titulo" placeholder="Ej: El Fruto del Espíritu">
+        <label>Tareas:</label>
+        <textarea id="tareas" rows="4" placeholder="Compromisos de la semana..."></textarea>
+        <button class="btn btn-save" onclick="guardar()">💾 Guardar Clase</button>
+    </div>
+
+    <div id="historial"></div>
+    
+    <button class="btn btn-pdf no-print" onclick="generarPDF()" style="margin-top:20px;">📄 Exportar PDF</button>
+</div>
+
+<script>
+    let clases = JSON.parse(localStorage.getItem('clases_v3')) || [];
+    let viendoForm = false;
+
+    function toggleModo() {
+        viendoForm = !viendoForm;
+        document.getElementById('formulario').classList.toggle('hidden');
+        document.getElementById('historial').classList.toggle('hidden');
+        document.getElementById('buscador').classList.toggle('hidden');
+        document.getElementById('btnModo').innerText = viendoForm ? "⬅️ Ver Historial" : "➕ Nueva Clase";
+    }
+
+    function guardar() {
+        const f = document.getElementById('fecha').value;
+        const c = document.getElementById('categoria').value;
+        const t = document.getElementById('titulo').value;
+        const ta = document.getElementById('tareas').value;
+
+        if(!f || !t) return alert("Pon fecha y título");
+
+        clases.push({ id: Date.now(), fecha: f, categoria: c, titulo: t, tareas: ta });
+        localStorage.setItem('clases_v3', JSON.stringify(clases));
+        
+        document.getElementById('titulo').value = "";
+        document.getElementById('tareas').value = "";
+        toggleModo();
+        render();
+    }
+
+    function render(datos = clases) {
+        const lista = document.getElementById('historial');
+        document.getElementById('total').innerText = clases.length;
+        lista.innerHTML = "";
+
+        datos.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(clase => {
+            lista.innerHTML += `
+                <div class="clase-card">
+                    <button class="delete-btn no-print" onclick="borrar(${clase.id})">&times;</button>
+                    <span class="cat-tag">${clase.categoria}</span>
+                    <div style="font-size:0.8em; color:gray; margin:5px 0;">📅 ${clase.fecha}</div>
+                    <h3 style="margin:5px 0;">${clase.titulo}</h3>
+                    <div style="background:#fff9e6; padding:8px; border-radius:5px; font-size:0.9em; margin-top:10px;">
+                        <strong>Tareas:</strong><br>${clase.tareas.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function borrar(id) {
+        if(confirm("¿Borrar esta clase?")) {
+            clases = clases.filter(c => c.id !== id);
+            localStorage.setItem('clases_v3', JSON.stringify(clases));
+            render();
+        }
+    }
+
+    function filtrar() {
+        const busqueda = document.getElementById('buscador').value.toLowerCase();
+        const filtradas = clases.filter(c => 
+            c.titulo.toLowerCase().includes(busqueda) || 
+            c.categoria.toLowerCase().includes(busqueda) || 
+            c.fecha.includes(busqueda)
+        );
+        render(filtradas);
+    }
+
+    function generarPDF() {
+        const elemento = document.getElementById('app');
+        const extras = document.querySelectorAll('.no-print');
+        extras.forEach(e => e.style.display = 'none');
+
+        html2pdf().from(elemento).set({
+            margin: 10,
+            filename: 'Mi_Discipulado.pdf',
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).save().then(() => {
+            extras.forEach(e => e.style.display = 'block');
+            document.getElementById('formulario').classList.add('hidden');
+        });
+    }
+
+    render();
+</script>
+</body>
+</html>
